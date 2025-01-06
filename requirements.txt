@@ -1,0 +1,8 @@
+torch
+torchvision
+detectron2
+fastapi
+uvicorn
+google-cloud-bigquery
+pillow
+requests

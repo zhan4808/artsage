@@ -1,30 +1,66 @@
-#cohere trial PcSM5p7jmIf4Ck0S42BY7bHvnKGYuEREaiVVqfZb
-#serpapi 6fb59283e98f42c2aa3db6c998ad2e196a567e01728548a286f56a5831e8b748
-#pinecone pcsk_4uEBmr_UcuxaQHFK83vhwvq8oTjyDgHFaEjvbkeoj26EgwjqSCC4qjrzHHgwHpnsfnhM8q
+from google.cloud import bigquery
+import json
 
-from pinecone import Pinecone, ServerlessSpec
-from fastapi import FastAPI, File, UploadFile
-from app.capture.camera import capture_frame
-from app.recognition.detectron import load_model, recognize_painting
-from app.retrieval.pinecone_client import query_embedding
-from app.nlp.query_processor import process_query
+def generate_met_categories(output_path="app/recognition/configs/met_categories.json"):
+    client = bigquery.Client()
+    query = """
+    SELECT
+        object_number,
+        object_id,
+        department,
+        object_name,
+        title,
+        culture,
+        artist_display_name,
+        artist_display_bio,
+        object_date,
+        link_resource
+    FROM
+        `bigquery-public-data.the_met.objects`
+    GROUP BY
+        object_number,
+        object_id,
+        department,
+        object_name,
+        title,
+        culture,
+        artist_display_name,
+        artist_display_bio,
+        link_resource,
+        object_date
+    ORDER BY
+        object_date ASC
+    """
+    query_job = client.query(query)
+    categories = [{"id": idx + 1, "name": row["category"]} for idx, row in enumerate(query_job)]
+    with open(output_path, "w") as f:
+        json.dump(categories, f)
 
+if __name__ == "__main__":
+    generate_met_categories()
+"""
+from fastapi import FastAPI
+from recognition.detectron import load_model
 
 app = FastAPI()
-model = load_model()
 
-@app.post("/query")
-async def handle_query(user_query: str):
-    # 1. Capture frame
-    image_path = capture_frame()
+predictor = load_model()
 
-    # 2. Recognize painting
-    outputs = recognize_painting(image_path, model)
+@app.get("/")
+def read_root():
+    return {"message": "Detectron2 Met Model Inference API"}
 
-    # 3. Retrieve data (mock example)
-    context = "Retrieved painting metadata..."
+@app.post("/predict")
+def predict(image_url: str):
+    from PIL import Image
+    import requests
+    from io import BytesIO
 
-    # 4. Process user query
-    response = process_query(user_query, context)
+    # Load image from URL
+    response = requests.get(image_url)
+    image = Image.open(BytesIO(response.content))
 
-    return {"response": response}
+    # Run inference
+    outputs = predictor(image)
+    return outputs
+"""
