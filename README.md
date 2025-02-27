@@ -1,2 +1,1 @@
-# artsage
- your own museum curator
+your own museum curator
